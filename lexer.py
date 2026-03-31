@@ -77,17 +77,15 @@ def t_NUMERO(t):
 def t_STRING(t):
     r'"([^"\\\n]|\\.|\\\n)*"'
     
-    if '\0' in t.value:
-        print(f"Erro Léxico: String contém caractere nulo na linha {t.lexer.lineno}")
-        return
-        
-    if len(t.value) - 2 > 1024:
-        print(f"Erro Léxico: String excede 1024 caracteres na linha {t.lexer.lineno}")
-        return
-
     t.lexer.lineno += t.value.count('\n')
 
     raw_str = t.value[1:-1]
+
+    if '\\0' in raw_str:
+        print(f"Erro Léxico: String contém \\0 na linha {t.lexer.lineno}")
+        t.lexer.skip(1)
+        return
+
     processed_str = ""
     i = 0
 
@@ -110,12 +108,13 @@ def t_STRING(t):
             processed_str += raw_str[i]
         i += 1
 
+    if len(processed_str) > 1024:
+        print(f"Erro Léxico: String excede 1024 caracteres na linha {t.lexer.lineno}")
+        t.lexer.skip(1)
+        return
+
     t.value = processed_str
     return t
-
-def t_UNMATCHED_COMMENT(t):
-    r'\*\)'
-    print(f"Erro Léxico: Fechamento de comentário '*)' inesperado na linha {t.lexer.lineno}")
 
 def t_newline(t):
     r'\n+'
@@ -150,13 +149,13 @@ def t_comment_newline(t):
 def t_comment_error(t):
     t.lexer.skip(1)
 
-def t_error(t):
-    print(f"Caractere ilegal '{t.value[0]}' na linha {t.lexer.lineno}")
-    t.lexer.skip(1)
-
 def t_comment_eof(t):
     print(f"Erro léxico: Comentário não fechado na linha {t.lexer.lineno}")
     return None
+
+def t_error(t):
+    print(f"Caractere ilegal '{t.value[0]}' na linha {t.lexer.lineno}")
+    t.lexer.skip(1)
 
 def t_string_error_newline(t):
     r'"([^"\\\n]|\\.)*\n'
@@ -173,16 +172,15 @@ if __name__ == '__main__':
     data = r'''
     class Main inherits IO {
         main() : Object {
-            out_string("Hello, world \C \0")
+            out_string("Hello, world")
             tRuE
             True
-        
+            10
         };
     };
     -- Comentário de uma linha
-    *)
     (* Comentário de múltiplas linhas
-       com aninhamento (* comentário aninhado *)
+       com aninhamento comentário aninhado *)
     '''
 
     lexer.input(data)
