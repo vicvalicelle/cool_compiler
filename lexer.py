@@ -167,23 +167,3 @@ def t_string_error_eof(t):
     print(f"Erro léxico: String não fechada (EOF) na linha {t.lexer.lineno}")
 
 lexer = lex.lex()
-
-if __name__ == '__main__':
-    data = r'''
-    class Main inherits IO {
-        main() : Object {
-            out_string("Hello, world")
-            tRuE
-            True
-            10
-        };
-    };
-    -- Comentário de uma linha
-    (* Comentário de múltiplas linhas
-       com aninhamento comentário aninhado *)
-    '''
-
-    lexer.input(data)
-    
-    for tok in lexer:
-        print(tok)
