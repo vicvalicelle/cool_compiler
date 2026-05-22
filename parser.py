@@ -230,37 +230,3 @@ def p_error(p):
         print("❌ ERRO SINTÁTICO: Fim de arquivo inesperado (EOF).")
 
 parser = yacc.yacc()
-
-
-
-
-
-
-
-if __name__ == '__main__':
-    codigo_teste = r'''
-    class Main inherits IO {
-        x : Int <- 10;
-        
-        main() : Object {
-            {
-                out_string("Hello, world\n");
-                while x < 20 loop
-                    x <- x + 1 tRue
-                pool;
-                False
-                
-                if isvoid x then
-                    out_string("Vazio")
-                else
-                    out_string("Cheio")
-                fi;
-            }
-        };
-    };
-    '''
-    
-    ast = parser.parse(codigo_teste, lexer=lexer)
-    
-    if ast:
-        pprint.pprint(ast, sort_dicts=False, indent=2)
