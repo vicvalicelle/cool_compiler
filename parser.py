@@ -133,17 +133,17 @@ def p_expr_static_dispatch(p):
     '''expr : expr ARROBA TIPO PONTO OBJETO ABREPARENTESES expr_list FECHAPARENTESES
             | expr ARROBA TIPO PONTO OBJETO ABREPARENTESES FECHAPARENTESES'''
     if len(p) == 9:
-        p[0] = {'node': 'static_dispatch', 'expr': p[1], 'type': p[3], 'id': p[5], 'args': p[7], 'line': p.lineno(1)}
+        p[0] = {'node': 'static_dispatch', 'expr': p[1], 'type': p[3], 'id': p[5], 'args': p[7], 'line': p.lineno(2)}
     else:
-        p[0] = {'node': 'static_dispatch', 'expr': p[1], 'type': p[3], 'id': p[5], 'args': [], 'line': p.lineno(1)}
+        p[0] = {'node': 'static_dispatch', 'expr': p[1], 'type': p[3], 'id': p[5], 'args': [], 'line': p.lineno(2)}
 
 def p_expr_dispatch(p):
     '''expr : expr PONTO OBJETO ABREPARENTESES expr_list FECHAPARENTESES
             | expr PONTO OBJETO ABREPARENTESES FECHAPARENTESES'''
     if len(p) == 7:
-        p[0] = {'node': 'dispatch', 'expr': p[1], 'id': p[3], 'args': p[5], 'line': p.lineno(1)}
+        p[0] = {'node': 'dispatch', 'expr': p[1], 'id': p[3], 'args': p[5], 'line': p.lineno(2)}
     else:
-        p[0] = {'node': 'dispatch', 'expr': p[1], 'id': p[3], 'args': [], 'line': p.lineno(1)}
+        p[0] = {'node': 'dispatch', 'expr': p[1], 'id': p[3], 'args': [], 'line': p.lineno(2)}
 
 def p_expr_self_dispatch(p):
     '''expr : OBJETO ABREPARENTESES expr_list FECHAPARENTESES
@@ -195,7 +195,7 @@ def p_expr_binop(p):
             | expr MENOR expr
             | expr MENORIGUAL expr
             | expr IGUAL expr'''
-    p[0] = {'node': 'binop', 'op': p[2], 'left': p[1], 'right': p[3], 'line': p.lineno(1)}
+    p[0] = {'node': 'binop', 'op': p[2], 'left': p[1], 'right': p[3], 'line': p.lineno(2)}
 
 def p_expr_unop(p):
     '''expr : COMPLEMENTO expr
