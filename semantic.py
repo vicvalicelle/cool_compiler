@@ -67,22 +67,22 @@ class SemanticAnalyzer:
             for error in self.errors:
                 print(error)
         else:
-            print("\nPrograma semanticamente estruturado e correto!")
+            print("\n✅ Programa semanticamente estruturado e correto!")
 
     def visit_class(self, node):
         class_name = node['name']
         parent_name = node.get('inherits', 'Object')
 
         if class_name in self.class_table:
-            self.errors.append(f"Classe '{class_name}' redefinida (Linha {node.get('line', '?')})")
+            self.errors.append(f"Linha {node.get('line', '?')}: Classe '{class_name}' redefinida.")
             return
         
         if class_name in ['Int', 'String', 'Bool', 'Object', 'IO']:
-            self.errors.append(f"Redefinição da classe básica '{class_name}' não é permitida")
+            self.errors.append(f"Linha {node.get('line', '?')}: Redefinição da classe básica '{class_name}' não é permitida.")
             return
             
         if parent_name in ['Int', 'String', 'Bool']:
-            self.errors.append(f"Classe '{class_name}' não pode herdar de tipo básico '{parent_name}'")
+            self.errors.append(f"Linha {node.get('line', '?')}: Classe '{class_name}' não pode herdar de tipo básico '{parent_name}'.")
 
         self.class_table[class_name] = node
 
@@ -133,7 +133,6 @@ class SemanticAnalyzer:
     def is_subtype(self, type1, type2):
         if type1 == type2: return True
         if type2 == 'Object': return True
-        
         if type2 == 'SELF_TYPE': return False 
 
         curr_t1 = self.current_class if type1 == 'SELF_TYPE' else type1
@@ -189,7 +188,15 @@ class SemanticAnalyzer:
     def type_check_program(self, node):
         for cls in node['classes']:
             self.current_class = cls['name']
-            
+
+            seen_methods = set()
+            for feature in cls.get('features', []):
+                if feature['node'] == 'method':
+                    fname = feature['name']
+                    if fname in seen_methods:
+                        self.errors.append(f"Linha {feature.get('line', '?')}: redefinição de método na mesma classe.")
+                    seen_methods.add(fname)
+
             self.enter_scope()
             self.define_variable('self', 'SELF_TYPE')
             
@@ -220,6 +227,9 @@ class SemanticAnalyzer:
 
     def visit_feature(self, node):
         if node['node'] == 'attribute':
+            if node['name'] == 'self':
+                self.errors.append(f"Linha {node.get('line', '?')}: atributo não pode se chamar self.")
+
             parent = self.class_table.get(self.current_class, {}).get('inherits', 'Object')
             curr = parent
             while curr:
@@ -252,9 +262,19 @@ class SemanticAnalyzer:
                     self.errors.append(f"Linha {node['line']}: Tipo de retorno do método '{node['name']}' difere da classe ascendente.")
 
             self.enter_scope()
+            
+            seen_formals = set()
             for formal in node['formals']:
                 if formal['name'] == 'self':
                     self.errors.append(f"Linha {node['line']}: 'self' não pode ser usado como nome de parâmetro.")
+                
+                if formal['type'] == 'SELF_TYPE':
+                    self.errors.append(f"Linha {node['line']}: SELF_TYPE não pode ser usado como tipo de parâmetro formal.")
+                
+                if formal['name'] in seen_formals:
+                    self.errors.append(f"Linha {node['line']}: parâmetros formais duplicados.")
+                    
+                seen_formals.add(formal['name'])
                 self.define_variable(formal['name'], formal['type'])
                 
             return_type = self.visit_expr(node['body'])
@@ -370,7 +390,7 @@ class SemanticAnalyzer:
             for branch in node['cases']:
                 b_type = branch['type']
                 if b_type in declared_branch_types:
-                    self.errors.append(f"Linha {branch.get('line', line)}: Ramo do case duplicado para o tipo '{b_type}'. Todos os ramos devem ter tipos distintos.")
+                    self.errors.append(f"Linha {branch.get('line', line)}: branches do case devem ter tipos distintos.")
                 declared_branch_types.add(b_type)
 
                 self.enter_scope()
