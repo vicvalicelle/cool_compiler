@@ -97,9 +97,14 @@ class BrilGenerator:
     # -----------------------------------
 
     def visit_identifier(self, node):
-        var_name = node["name"]
-        var_type = "int"
-        return var_name, var_type
+        cool_var_name = node["name"]
+
+        for scope in reversed(self.env):
+            if cool_var_name in scope:
+                bril_var_name, bril_type = scope[cool_var_name]
+                return bril_var_name, bril_type
+
+        raise Exception(f"Erro de Escopo: Variável '{cool_var_name}' não foi declarada.")
 
     # -----------------------------------
     # operações binárias
@@ -119,6 +124,9 @@ class BrilGenerator:
             "-": "sub",
             "*": "mul",
             "/": "div",
+            "<": "lt",
+            "<=": "le",
+            "=": "eq",
         }
 
         op = bril_ops[node["op"]]
