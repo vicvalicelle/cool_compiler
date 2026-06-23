@@ -1,1 +1,5 @@
 __pycache__/
+bril/
+parser.out
+parsetab.py
+programa.bril
