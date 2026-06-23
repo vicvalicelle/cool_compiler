@@ -67,7 +67,7 @@ class SemanticAnalyzer:
             for error in self.errors:
                 print(error)
         else:
-            print("\n✅ Programa semanticamente estruturado e correto!")
+            print("\nPrograma semanticamente estruturado e correto!")
 
     def visit_class(self, node):
         class_name = node['name']
