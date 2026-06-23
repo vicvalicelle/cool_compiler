@@ -5,8 +5,11 @@ class BrilGenerator:
         self.label_count = 0
         self.current_class = None
 
-        # tabela simples de variáveis -> tipo bril
-        self.env = {}
+        # pilha de escopos
+        self.env = [{}]
+
+        # contador para renomeação
+        self.var_count = 0
 
     # -----------------------------------
     # utilitários
@@ -42,7 +45,39 @@ class BrilGenerator:
         raise NotImplementedError(
             f"Gerador não implementado para nó '{node['node']}'"
         )
+    
+    # -----------------------------------
+    # gerenciamento de escopo e tipos
+    # -----------------------------------
 
+    def enter_scope(self):
+        self.env.append({})
+
+    def exit_scope(self):
+        self.env.pop()
+
+    def new_variable(self, cool_name):
+        self.var_count += 1
+        return f"{cool_name}_{self.var_count}"
+
+    def define_variable(self, cool_name, bril_type):
+        bril_name = self.new_variable(cool_name)
+        self.env[-1][cool_name] = (bril_name, bril_type)
+        return bril_name
+
+    def lookup_variable(self, cool_name):
+        for scope in reversed(self.env):
+            if cool_name in scope:
+                return scope[cool_name]
+        raise Exception(f"Variável '{cool_name}' não encontrada.")
+
+    def cool_to_bril_type(self, cool_type):
+        mapping = {
+            "Int": "int",
+            "Bool": "bool"
+        }
+        return mapping.get(cool_type, "Object")
+    
     # -----------------------------------
     # programa
     # -----------------------------------
@@ -66,11 +101,14 @@ class BrilGenerator:
             method_name = f"{self.current_class}_{node['name']}"
 
         self.emit(f"@{method_name} {{")
+        self.enter_scope()
 
         result_var, result_type = self.visit(node["body"])
 
         if result_var:
             self.emit(f"  print {result_var};")
+
+        self.exit_scope()
 
         self.emit("}")
         self.emit("")
@@ -78,33 +116,56 @@ class BrilGenerator:
         return None, None
 
     # -----------------------------------
+    # Expressões e Variáveis Locais
+    # -----------------------------------
+
+    def visit_let(self, node):
+        self.enter_scope()
+
+        for binding in node["bindings"]:
+            cool_name = binding["id"]
+            bril_type = self.cool_to_bril_type(binding["type"])
+            
+            bril_name = self.define_variable(cool_name, bril_type)
+
+            if binding["value"] is not None:
+                value_var, value_type = self.visit(binding["value"])
+                self.emit(f"  {bril_name}: {bril_type} = id {value_var};")
+            else:
+                if bril_type == "int":
+                    self.emit(f"  {bril_name}: int = const 0;")
+                elif bril_type == "bool":
+                    self.emit(f"  {bril_name}: bool = const false;")
+
+        result_var, result_type = self.visit(node["body"])
+        
+        self.exit_scope()
+        return result_var, result_type
+
+    def visit_assign(self, node):
+        expr_var, expr_type = self.visit(node["expr"])
+        target_var, target_type = self.lookup_variable(node["id"])
+
+        self.emit(f"  {target_var}: {target_type} = id {expr_var};")
+        return target_var, target_type
+
+    def visit_identifier(self, node):
+        return self.lookup_variable(node["name"])
+    
+    # -----------------------------------
     # literais
     # -----------------------------------
 
     def visit_integer(self, node):
         temp = self.new_temp()
-        self.emit(f"{temp}: int = const {node['value']};")
+        self.emit(f"  {temp}: int = const {node['value']};")
         return temp, "int"
 
     def visit_boolean(self, node):
         temp = self.new_temp()
         value = "true" if node["value"] else "false"
-        self.emit(f"{temp}: bool = const {value};")
+        self.emit(f"  {temp}: bool = const {value};")
         return temp, "bool"
-
-    # -----------------------------------
-    # identificadores
-    # -----------------------------------
-
-    def visit_identifier(self, node):
-        cool_var_name = node["name"]
-
-        for scope in reversed(self.env):
-            if cool_var_name in scope:
-                bril_var_name, bril_type = scope[cool_var_name]
-                return bril_var_name, bril_type
-
-        raise Exception(f"Erro de Escopo: Variável '{cool_var_name}' não foi declarada.")
 
     # -----------------------------------
     # operações binárias
@@ -128,12 +189,14 @@ class BrilGenerator:
             "<=": "le",
             "=": "eq",
         }
-
+        
         op = bril_ops[node["op"]]
 
-        self.emit(f"{result}: int = {op} {left_var} {right_var};")
+        ret_type = "bool" if op in ["lt", "le", "eq"] else "int"
 
-        return result, "int"
+        self.emit(f"  {result}: {ret_type} = {op} {left_var} {right_var};")
+
+        return result, ret_type
 
     # -----------------------------------
     # parênteses
