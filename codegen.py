@@ -2,6 +2,7 @@ class BrilGenerator:
     def __init__(self):
         self.code = []
         self.temp_count = 0
+        self.current_class = None
 
         # tabela simples de variáveis -> tipo bril
         self.env = {}
@@ -41,20 +42,34 @@ class BrilGenerator:
     def visit_program(self, node):
         for cls in node["classes"]:
             self.visit(cls)
+        return None, None
 
     def visit_class(self, node):
+        self.current_class = node["name"]
         for feature in node["features"]:
             self.visit(feature)
+        self.current_class = None
+        return None, None
 
     def visit_method(self, node):
-        self.emit(f"# método {node['name']}")
+        if self.current_class == "Main" and node["name"] == "main":
+            method_name = "main"
+        else:
+            method_name = f"{self.current_class}_{node['name']}"
+
+        self.emit(f"@{method_name} {{")
 
         result = self.visit(node["body"])
 
-        if result:
-            self.emit(f"print {result};")
+        result_var, result_type = self.visit(node["body"])
 
+        if result_var:
+            self.emit(f"  print {result_var};")
+
+        self.emit("}")
         self.emit("")
+        
+        return None, None
 
     # -----------------------------------
     # literais
@@ -67,7 +82,7 @@ class BrilGenerator:
             f"{temp}: int = const {node['value']};"
         )
 
-        return temp
+        return temp, "int"
 
     def visit_boolean(self, node):
         temp = self.new_temp()
@@ -78,22 +93,29 @@ class BrilGenerator:
             f"{temp}: bool = const {value};"
         )
 
-        return temp
+        return temp, "bool"
 
     # -----------------------------------
     # identificadores
     # -----------------------------------
 
     def visit_identifier(self, node):
-        return node["name"]
+        var_name = node["name"]
+
+        var_type = "int"
+
+        return var_name, var_type
 
     # -----------------------------------
     # operações binárias
     # -----------------------------------
 
     def visit_binop(self, node):
-        left = self.visit(node["left"])
-        right = self.visit(node["right"])
+        left_var, left_type = self.visit(node["left"])
+        right_var, right_type = self.visit(node["right"])
+
+        if left_type != right_type:
+            raise ValueError("Tipos incompatíveis na operação binária")
 
         result = self.new_temp()
 
@@ -107,10 +129,10 @@ class BrilGenerator:
         op = bril_ops[node["op"]]
 
         self.emit(
-            f"{result}: int = {op} {left} {right};"
+            f"{result}: int = {op} {left_var} {right_var};"
         )
 
-        return result
+        return result, "int"
 
     # -----------------------------------
     # parênteses
