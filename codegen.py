@@ -11,6 +11,9 @@ class BrilGenerator:
         # contador para renomeação
         self.var_count = 0
 
+        # tabela para guardar os tipos de retorno dos métodos
+        self.method_table = {}
+
     # -----------------------------------
     # utilitários
     # -----------------------------------
@@ -24,7 +27,10 @@ class BrilGenerator:
         return f".{prefix}.{self.label_count}"
 
     def emit(self, line):
-        self.code.append(line)
+        if line.startswith(("@", "}", ".", "{")):
+            self.code.append(line)
+        else:
+            self.code.append(f"  {line}")
 
     def emit_label(self, label):
         self.code.append(f"{label}:")
@@ -100,20 +106,69 @@ class BrilGenerator:
         else:
             method_name = f"{self.current_class}_{node['name']}"
 
-        self.emit(f"@{method_name} {{")
         self.enter_scope()
 
+        old_code = self.code
+        self.code = [] 
+
+        params = []
+        for formal in node.get("formals", []):
+            cool_name = formal["name"]
+            bril_type = self.cool_to_bril_type(formal["type"])
+            bril_name = self.define_variable(cool_name, bril_type)
+            params.append(f"{bril_name}: {bril_type}")
+
+        params_str = ", ".join(params)
+        
         result_var, result_type = self.visit(node["body"])
+        self.method_table[method_name] = result_type
 
-        if result_var:
-            self.emit(f"  print {result_var};")
+        if method_name == "main":
+            if result_var: self.emit(f"  print {result_var};")
+            self.emit("  ret;")
+        else:
+            if result_var: self.emit(f"  ret {result_var};")
+            else: self.emit("  ret;")
 
-        self.exit_scope()
-
+        body_code = self.code
+        self.code = old_code
+        
+        if method_name == "main":
+            self.emit(f"@{method_name}({params_str}) {{")
+        else:
+            self.emit(f"@{method_name}({params_str}): {result_type} {{")
+            
+        self.code.extend(body_code)
         self.emit("}")
         self.emit("")
-        
+
+        self.exit_scope()
         return None, None
+
+    def visit_dispatch(self, node):
+        obj_var, obj_type = self.visit(node["expr"])
+
+        arg_vars = []
+        for actual in node.get("args", []):
+            arg_var, arg_type = self.visit(actual)
+            arg_vars.append(arg_var)
+
+        function_name = f"{obj_type}_{node['id']}"
+        
+        if function_name == "Main_main": 
+            function_name = "main"
+
+        return_type = self.method_table.get(function_name, "int")
+
+        result_var = self.new_temp()
+        args_str = " ".join(arg_vars)
+
+        if args_str:
+            self.emit(f"  {result_var}: {return_type} = call @{function_name} {args_str};")
+        else:
+            self.emit(f"  {result_var}: {return_type} = call @{function_name};")
+
+        return result_var, return_type
 
     # -----------------------------------
     # Expressões e Variáveis Locais
@@ -150,6 +205,8 @@ class BrilGenerator:
         return target_var, target_type
 
     def visit_identifier(self, node):
+        if node["name"] == "self":
+            return "self", self.current_class
         return self.lookup_variable(node["name"])
     
     # -----------------------------------
